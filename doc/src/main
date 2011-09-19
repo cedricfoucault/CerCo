@@ -1,0 +1,56 @@
+{2 Driver}
+
+{!modules: Acc Checker Languages Options AnnotationOptions}
+
+{2 Cminor}
+
+{!modules: Cminor CminorAnnotator CminorInterpret CminorLabelling
+  CminorPrinter CminorToRTLabs
+}
+
+{2 Clight}
+
+{!modules: Clight ClightAnnotator ClightInterpret ClightLabelling
+  ClightParser ClightPrinter ClightToCminor
+}
+
+{2 RTLabs}
+
+{!modules: RTLabs RTLabsInterpret RTLabsPrinter RTLabsToRTL}
+
+{2 RTL}
+
+{!modules: RTL RTLInterpret RTLPrinter RTLToERTLI RTLToERTL}
+
+{2 ERTL}
+
+{!modules: ERTL ERTLInterpret Spill Coloring ERTLPrinter 
+  ERTLToLTLI ERTLToLTL Liveness Uses Zero 
+}
+
+{2 LTL}
+
+{!modules: LTL LTLInterpret LTLPrinter LTLToLINI LTLToLIN}
+
+{2 LIN}
+
+{!modules: LIN LINInterpret LINPrinter LINToASM Branch}
+
+{2 ASM}
+
+{!modules: ASM ASMInterpret ASMCompute_costs ASMPrinter
+  MIPSInterpret MIPS MIPSOps PrintOps}
+
+{2 Language-independent modules}
+
+{!modules: AST Atom AtomSig CostLabel Label Memory
+  Primitive PrintPrimitive Register Value Build
+}
+
+{2 General utilities}
+
+{!modules: OptionsParsing Position Misc Error
+  Error Fix Integer Interference Misc MiscPottier MyMap
+  Option Position PrintCFG Print PrintPottier PrioritySet SetMap
+  StringSig StringTools SyntacticAnalysis UnionFind
+}

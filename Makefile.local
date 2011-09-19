@@ -1,0 +1,12 @@
+###########################
+## Package configuration ##
+###########################
+.PHONY: all 
+
+all: all-generic
+
+VERSION   = 0.1
+TARGET    = acc
+TARGETEXT = acc
+PACKAGE   = acc-$(VERSION)
+

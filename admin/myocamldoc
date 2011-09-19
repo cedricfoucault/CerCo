@@ -1,0 +1,50 @@
+#!/usr/bin/env ocaml
+
+(* This script is a wrapper for ocamldoc.
+
+   This is a simple workaround for the defaults ocamldoc rules of
+   ocamlbuild. *)
+
+(* We assume that the command line arguments are given in the
+   following order: 
+
+   ocamldoc [options] FILE.(ml|mli)
+
+   where FILE is either an implementation or an interface. 
+
+   This script rewrites this command line into something of 
+   the shape:
+
+   ocamldoc [options] -intf FILE.mli -impl FILE.ml
+
+   provided that FILE.mli and FILE.ml exist (otherwise, one of these
+   two options is dropped out).
+
+*)
+
+open List
+
+let nb         = Array.length Sys.argv
+let args       = List.tl (Array.to_list Sys.argv)
+let file       = Filename.chop_extension (Sys.argv.(nb - 1))     
+let file_is    = Filename.check_suffix Sys.argv.(nb - 1)
+let impl       = file ^ ".ml"   
+let opt what f = if Sys.file_exists f then what ^ " " ^ f else ""
+
+let cmd =                                  
+  match args with
+    | [] -> "ocamlfind ocamldoc"
+    | _ -> 
+      if file_is ".ml" || file_is ".mli" then
+	let options = rev (tl (rev args)) in
+	Printf.sprintf "ocamlfind ocamldoc %s %s %s"
+	  (opt "-impl" (file ^ ".ml"))
+	  (opt "-intf" (file ^ ".mli"))
+	  (String.concat " " options)
+      else 
+	Printf.sprintf "ocamlfind ocamldoc %s" 
+	  (String.concat " " args)
+
+let _ = 
+  exit (Sys.command cmd)
+

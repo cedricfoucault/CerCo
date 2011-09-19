@@ -1,0 +1,17 @@
+<src/*>: use_unix, pkg_menhirLib, use_str, use_cparser, use_nums
+<src/clight/*>: use_unix, pkg_menhirLib, use_str, use_cparser
+
+<src>: include
+<src/utilities>: include
+<src/common>: include
+<src/RTL>: include
+<src/ERTL>: include
+<src/LTL>: include
+<src/LIN>: include
+<src/ASM>: include
+<src/clight>: include
+<src/cminor>: include
+<src/RTLabs>: include
+<src/RTL>: include
+
+<*>: use_unix, use_menhir, use_cparser
