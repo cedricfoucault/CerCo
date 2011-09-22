@@ -172,17 +172,19 @@ let complex_ctype_vars cfun =
 
 let union_list = List.fold_left StringTools.Set.union StringTools.Set.empty
 
-let f_expr (Clight.Expr (ed, _)) sub_exprs_res =
+let addr_vars_fun_expr (Clight.Expr (ed, _)) sub_exprs_res =
   let res_ed = match ed with
     | Clight.Eaddrof (Clight.Expr (Clight.Evar id, _)) ->
       StringTools.Set.singleton id
     | _ -> StringTools.Set.empty in
   union_list (res_ed :: sub_exprs_res)
 
-let f_stmt _ sub_exprs_res sub_stmts_res =
+let addr_vars_fun_stmt _ sub_exprs_res sub_stmts_res =
   union_list (sub_exprs_res @ sub_stmts_res)
 
-let addr_vars_fun cfun = ClightFold.statement2 f_expr f_stmt cfun.Clight.fn_body
+let addr_vars_fun cfun =
+  ClightFold.statement2
+    addr_vars_fun_expr addr_vars_fun_stmt cfun.Clight.fn_body
 
 let stack_vars cfun =
   StringTools.Set.union (complex_ctype_vars cfun) (addr_vars_fun cfun)
@@ -338,28 +340,10 @@ let translate_binop res_type ctype1 ctype2 e1 e2 binop =
       Cminor.Expr (Cminor.Op2 (cminor_binop, e1, e2), res_type)
 
 let translate_ident var_locs res_type x =
-  let ed = match find_var_locs x var_locs with
-    | (Local, _) | (Param, _) -> Cminor.Id x
-    | (LocalStack off, t) | (ParamStack off, t) when is_scalar_ctype t ->
-      let addr = Cminor.Expr (add_stack off, AST.Sig_ptr) in
-      Cminor.Mem (quantity_of_ctype t, addr)
-    | (LocalStack off, _) | (ParamStack off, _) ->
-      add_stack off
-    | (Global, t) when is_scalar_ctype t ->
-      let addr = Cminor.Expr (Cminor.Cst (AST.Cst_addrsymbol x), AST.Sig_ptr) in
-      Cminor.Mem (quantity_of_ctype t, addr)
-    | (Global, _) -> Cminor.Cst (AST.Cst_addrsymbol x) in
-  Cminor.Expr (ed, res_type)
+  assert false (* TODO M1 *)
 
 let translate_field res_type t e field =
-  let (fields, offset) = match t with
-    | Clight.Tstruct (_, fields) -> (fields, struct_offset t field fields)
-    | Clight.Tunion (_, fields) ->
-      (fields, Cminor.Expr (Cminor.Cst (AST.Cst_int 0), AST.Sig_offset))
-    | _ -> assert false (* type error *) in
-  let addr = Cminor.Expr (Cminor.Op2 (AST.Op_addp, e, offset), AST.Sig_ptr) in
-  let quantity = quantity_of_ctype (List.assoc field fields) in
-  Cminor.Expr (Cminor.Mem (quantity, addr), res_type)
+  assert false (* TODO M1 *)
 
 let translate_cast e src_type dest_type =
   let res_type = sig_type_of_ctype dest_type in
@@ -382,7 +366,7 @@ let rec f_expr var_locs (Clight.Expr (ed, t)) sub_exprs_res =
   match ed, sub_exprs_res with
 
   | Clight.Econst_int i, _ ->
-    Cminor.Expr (Cminor.Cst (AST.Cst_int i), t_cminor)
+    assert false (* TODO M1 *)
 
   | Clight.Econst_float _, _ -> error_float ()
 
@@ -411,7 +395,7 @@ let rec f_expr var_locs (Clight.Expr (ed, t)) sub_exprs_res =
   | Clight.Ecast (t, Clight.Expr (_, t')), e :: _ -> translate_cast e t' t
 
   | Clight.Econdition _, e1 :: e2 :: e3 :: _ ->
-    Cminor.Expr (Cminor.Cond (e1, e2, e3), t_cminor)
+    assert false (* TODO M1 *)
 
   | Clight.Eandbool _, e1 :: e2 :: _ -> 
     let zero = cst_int 0 t_cminor in
@@ -500,22 +484,10 @@ let f_stmt fresh var_locs stmt sub_exprs_res sub_stmts_res =
       ([], Cminor.St_call (None, f, args, call_sig AST.Type_void args))
 
     | Clight.Scall (Some e, _, _), _ :: f :: args, _ ->
-      let t = sig_type_of_ctype (clight_type_of e) in
-      let tmp = fresh () in
-      let tmpe = Cminor.Expr (Cminor.Id tmp, t) in
-      let stmt_call =
-	Cminor.St_call (Some tmp, f, args, call_sig (AST.Type_ret t) args) in
-      let stmt_assign = assign var_locs e tmpe in
-      ([(tmp, t)], Cminor.St_seq (stmt_call, stmt_assign))
+      assert false (* TODO M1 *)
 
     | Clight.Swhile _, e :: _, stmt :: _ ->
-      let econd =
-	Cminor.Expr (Cminor.Op1 (AST.Op_notbool, e), cminor_type_of e) in
-      let scond =
-	Cminor.St_ifthenelse (econd, Cminor.St_exit 0, Cminor.St_skip) in
-      ([],
-       Cminor.St_block (Cminor.St_loop (Cminor.St_seq (scond,
-						       Cminor.St_block stmt))))
+      assert false (* TODO M1 *)
 
     | Clight.Sdowhile _, e :: _, stmt :: _ ->
       let econd =
@@ -538,10 +510,10 @@ let f_stmt fresh var_locs stmt sub_exprs_res sub_stmts_res =
 			(Cminor.St_loop (Cminor.St_seq (scond, body)))))
 
     | Clight.Sifthenelse _, e :: _, stmt1 :: stmt2 :: _ ->
-      ([], Cminor.St_ifthenelse (e, stmt1, stmt2))
+      assert false (* TODO M1 *)
 
     | Clight.Ssequence _, _, stmt1 :: stmt2 :: _ ->
-      ([], Cminor.St_seq (stmt1, stmt2))
+      assert false (* TODO M1 *)
 
     | Clight.Sbreak, _, _ -> ([], Cminor.St_exit 1)
 

@@ -208,45 +208,19 @@ let restore_hdws2 hdws psds =
   assert (List.length hdws = List.length psds) ;
   restore_hdws (List.combine psds hdws)
 
-let get_params_hdw params =
-  if List.length params = 0 then
-    [fun lbl -> adds_graph [ERTL.St_skip lbl] lbl]
-  else
-    let l = MiscPottier.combine params Driver.TargetArch.parameters in
-    [fun lbl -> adds_graph (save_hdws l lbl) lbl]
 
-let get_param_stack arg_num destr start_lbl dest_lbl def =
-  let (def, addr) = fresh_pointer def in
-  let (def, tmpr1) = fresh_reg def in
-  let (def, tmpr2) = fresh_reg def in
-  let off = (arg_num + 1) * Driver.TargetArch.int_size in
-  let get_sp = save_hdws2 addr Driver.TargetArch.sp start_lbl in
-  let chunk = Driver.TargetArch.int_size in
-  add_translates
-    [adds_graph [ERTL.St_framesize (tmpr1, start_lbl) ;
-		 ERTL.St_int (tmpr2, off, start_lbl)] ;
-     translate_sub [tmpr1] [tmpr1] [tmpr2] ;
-     adds_graph get_sp ;
-     translate_add addr addr [tmpr1] ;
-     adds_graph [ERTL.St_load (chunk, destr, addr, start_lbl)]]
-    start_lbl dest_lbl def
+let get_params_hdw params =
+  assert false (* TODO M1 *)
 
 let get_params_stack params =
-  if List.length params = 0 then
-    [fun lbl -> adds_graph [ERTL.St_skip lbl] lbl]
-  else
-    let f i r = get_param_stack i r in
-    MiscPottier.mapi f params
+  assert false (* TODO M1 *)
 
 (* Parameters are taken from the physical parameter registers first. If there
    are not enough such of these, then the remaining parameters are taken from
    the stack. *)
 
 let get_params params =
-  let n =
-    min (List.length params) (List.length Driver.TargetArch.parameters) in
-  let (hdw_params, stack_params) = MiscPottier.split params n in
-  (get_params_hdw hdw_params) @ (get_params_stack stack_params)
+  assert false (* TODO M1 *)
 
 let add_prologue params sra sregs def =
   let start_lbl = def.ERTL.f_entry in
@@ -276,15 +250,7 @@ let add_prologue params sra sregs def =
 
 
 let assign_result ret_regs start_lbl dest_lbl def =
-  let (def, tmpr) = fresh_reg def in
-  let ((common1, rest1), (common2, _)) =
-    MiscPottier.reduce Driver.TargetArch.result ret_regs in
-  let f_rest res = ERTL.St_set_hdw (res, tmpr, start_lbl) in
-  let insts_rest = List.map f_rest rest1 in
-  adds_graph
-    ((ERTL.St_int (tmpr, 0, start_lbl)) ::
-     (restore_hdws2 common1 common2 start_lbl) @ insts_rest)
-    start_lbl dest_lbl def
+  assert false (* TODO M1 *)
 
 let add_epilogue ret_regs sra sregs def =
   let start_lbl = def.ERTL.f_exit in
@@ -328,49 +294,24 @@ let add_pro_and_epilogue params ret_regs def =
 
 
 let set_params_hdw params =
-  if List.length params = 0 then [fun lbl -> adds_graph [ERTL.St_skip lbl] lbl]
-  else
-    let l = MiscPottier.combine params Driver.TargetArch.parameters in
-    [fun lbl -> adds_graph (restore_hdws l lbl) lbl]
-
-let set_param_stack arg_num srcr start_lbl dest_lbl def =
-  let (def, addr) = fresh_pointer def in
-  let (def, tmpr) = fresh_reg def in
-  let off = (arg_num + 1) * Driver.TargetArch.int_size in
-  let get_sp = save_hdws2 addr Driver.TargetArch.sp start_lbl in
-  let chunk = Driver.TargetArch.int_size in
-  add_translates
-    [adds_graph ((ERTL.St_int (tmpr, off, start_lbl)) :: get_sp) ;
-     translate_sub addr addr [tmpr] ;
-     adds_graph [ERTL.St_store (chunk, addr, srcr, start_lbl)]]
-    start_lbl dest_lbl def
+  assert false (* TODO M1 *)
 
 let set_params_stack params =
-  if List.length params = 0 then [fun lbl -> adds_graph [ERTL.St_skip lbl] lbl]
-  else
-    let f i r = set_param_stack i r in
-    MiscPottier.mapi f params
+  assert false (* TODO M1 *)
 
 (* Parameters are put in the physical parameter registers first. If there are
    not enough such of these, then the remaining parameters are passed on the
    stack. *)
 
 let set_params params =
-  let n = min (List.length params) (List.length Driver.TargetArch.parameters) in
-  let (hdw_params, stack_params) = MiscPottier.split params n in
-  (set_params_hdw hdw_params) @ (set_params_stack stack_params)
+  assert false (* TODO M1 *)
 
 
 (* Fetching the result depends on the type of the function, or rather, the
    number of registers that are waiting for a value. *)
 
 let fetch_result ret_regs start_lbl =
-  let ((common1, rest1), (common2, _)) =
-    MiscPottier.reduce ret_regs Driver.TargetArch.result in
-  let insts_fetch = save_hdws2 common1 common2 start_lbl in
-  let f_rest ret_reg = ERTL.St_int (ret_reg, 0, start_lbl) in
-  let insts_rest = List.map f_rest rest1 in
-  adds_graph (insts_fetch @ insts_rest) start_lbl
+  assert false (* TODO M1 *)
 
 
 (* When calling a function, we need to set its parameters in specific locations:
@@ -426,9 +367,7 @@ let translate_stmt lbl stmt def = match stmt with
     adds_graph (MiscPottier.mapi f destrs) lbl lbl' def
 
   | RTL.St_stackaddr (destrs, lbl') ->
-    assert (List.length destrs = List.length Driver.TargetArch.sp) ;
-    let f destr sp = ERTL.St_get_hdw (destr, sp, lbl) in
-    adds_graph (List.map2 f destrs Driver.TargetArch.sp) lbl lbl' def
+    assert false (* TODO M1 *)
 
   | RTL.St_globaladdr (destrs, lbl') ->
     assert (List.length destrs = List.length Driver.TargetArch.gp) ;

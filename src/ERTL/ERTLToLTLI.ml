@@ -319,8 +319,7 @@ end) = struct
 	LTL.St_skip (move (lookup r1) (lookup r2) l)
 
       | ERTL.St_int (r, i, l) ->
-	let (hdw, l) = write r l in
-	LTL.St_int (hdw, i, l)
+	assert false (* TODO M1 *)
 
       | ERTL.St_unop (unop, destr, srcr, l) ->
 	let (dhdw, l) = write destr l in
@@ -328,12 +327,7 @@ end) = struct
 	  (read1 srcr (fun shdw -> [LTL.St_unop (unop, dhdw, shdw, l)]) l)
 
       | ERTL.St_binop (binop, destr, sourcer1, sourcer2, l) ->
-	let (desthdw, l) = write destr l in
-	let l =
-	  read2 sourcer1 sourcer2
-	    (fun sourcehdw1 sourcehdw2 ->
-	      [LTL.St_binop (binop, desthdw, sourcehdw1, sourcehdw2, l)]) l in
-	LTL.St_skip l
+	assert false (* TODO M1 *)
 
       | ERTL.St_addrN (r, id, n, l) ->
 	assert (List.length st_addr0 >= n) ;

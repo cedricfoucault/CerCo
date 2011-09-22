@@ -35,7 +35,10 @@ let translate_fun_def (id, def) =
     | LIN.F_int code -> (Arch.ILabel id) :: (translate_code code)
     | LIN.F_ext ext -> []
 
-let code functs = List.flatten (List.map translate_fun_def functs)
+
+let code functs =
+  assert false (* TODO M1 *)
+
 
 let externals functs =
   let f externals (_, def) = match def with
