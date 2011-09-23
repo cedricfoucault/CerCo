@@ -98,8 +98,10 @@ let options = OptionsParsing.register [
   extra_doc " Clight, Cminor, RTLabs, RTL, ERTL, LTL, LIN, ASM.";
   extra_doc " [default is ASM]";
 
+(*
   "-a", Arg.Set annotation_flag,
   " Add cost annotations on the source code.";
+*)
 
   "-i", Arg.Set interpretation_flag,
   " Interpret the compiled code.";
@@ -113,6 +115,7 @@ let options = OptionsParsing.register [
   "-o", Arg.String set_output_files,
   " Prefix of the output files.";
 
+(*
   "-lustre", Arg.Set lustre_flag,
   " Input file is a Lustre file.";
 
@@ -139,6 +142,7 @@ let options = OptionsParsing.register [
   "-lustre-test-max-int", Arg.Int set_lustre_test_max_int,
   " Random int maximum value when testing a Lustre file.";
   extra_doc " [default is 1000]";
+*)
 
 (*
   "-res", Arg.Set print_result_flag,
