@@ -1,7 +1,4 @@
-(** This module defines the abstract syntax tree of [Clight]. 
-
-    This is a (quasi-)direct translation of the Coq definition that 
-    can be found in the CompCert development. *)
+(** This module defines the abstract syntax tree of [Clight]. *)
 
 open AST
 

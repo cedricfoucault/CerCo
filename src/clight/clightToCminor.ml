@@ -7,7 +7,9 @@ let error_float () = error "float not supported."
 
 (* General helpers *)
 
-let clight_type_of (Clight.Expr (_, t)) = t
+(** [clight_type_of e] returns the [Clight] type of the [Clight] expression
+    [e]. *)
+let clight_type_of ((Clight.Expr (_, t)) : Clight.expr) : Clight.ctype = t
 
 let cminor_type_of (Cminor.Expr (_, t)) = t
 
@@ -19,7 +21,9 @@ let byte_size_of_intsize = function
   | Clight.I16 -> 2
   | Clight.I32 -> 4
 
-let sig_type_of_ctype = function
+(** [sig_type_of_ctype ctype] returns the translation of the [Clight] type
+    [ctype] in a [Cminor] type. *)
+let sig_type_of_ctype : Clight.ctype -> AST.sig_type = function
   | Clight.Tvoid -> assert false (* do not use on this argument *)
   | Clight.Tint (intsize, sign) ->
     AST.Sig_int (byte_size_of_intsize intsize, sign)
@@ -99,11 +103,13 @@ let struct_offset t field fields =
 (** Sort variables: locals, parameters, globals, in stack. *)
 
 type location = 
-  | Local
-  | LocalStack of AST.abstract_offset
-  | Param
-  | ParamStack of AST.abstract_offset
-  | Global
+  | Local (* local both in [Clight] and in [Cminor] *)
+  | LocalStack of AST.abstract_offset (* a local in [Clight],
+					 in stack in [Cminor] *)
+  | Param (* parameter in [Clight], parameter in [Cminor] *)
+  | ParamStack of AST.abstract_offset (* parameter in [Clight],
+					 in stack in [Cminor] *)
+  | Global (* global both in [Clight] and in [Cminor] *)
 
 (** Below are some helper definitions to ease the manipulation of a translation
     environment for variables. *)
@@ -118,6 +124,8 @@ let add_var_locs : AST.ident -> (location * Clight.ctype) -> var_locations ->
 
 let mem_var_locs : AST.ident -> var_locations -> bool = StringTools.Map.mem
 
+(** [find_var_locs x var_locs] returns the location and type of the [Clight]
+    variable [x] in the variable locations [var_locs]. *)
 let find_var_locs : AST.ident -> var_locations -> (location * Clight.ctype) =
   StringTools.Map.find
 
@@ -339,7 +347,14 @@ let translate_binop res_type ctype1 ctype2 e1 e2 binop =
       let cminor_binop = translate_simple_binop ctype1 binop in
       Cminor.Expr (Cminor.Op2 (cminor_binop, e1, e2), res_type)
 
-let translate_ident var_locs res_type x =
+(** [translate_ident var_locs res_type x] translates the [Clight] variable [x]
+    in a [Cminor] expression, where [var_locs] is the location of the variables,
+    and [res_type] is the type of the resulting [Cminor] expression. *)
+let translate_ident
+    (var_locs : var_locations)
+    (res_type : AST.sig_type)
+    (x : AST.ident)
+    : Cminor.expression =
   assert false (* TODO M1 *)
 
 let translate_field res_type t e field =
@@ -360,25 +375,33 @@ let translate_cast e src_type dest_type =
       Cminor.Expr (Cminor.Op1 (AST.Op_intofptr, e), res_type)
     | _ -> e
 
-let rec f_expr var_locs (Clight.Expr (ed, t)) sub_exprs_res =
+(** [f_expr var_locs e sub_exprs_res] translates the [Clight] expression [e] in
+    a [Cminor] expression, where [var_locs] is the location of the variables,
+    and [sub_exprs_res] is the translation of the sub-expressions of [e]. *)
+let rec f_expr
+    (var_locs : var_locations)
+    ((Clight.Expr (ed, t)) : Clight.expr)
+    (sub_exprs_res : Cminor.expression list)
+    : Cminor.expression =
   let t_cminor = sig_type_of_ctype t in
-  let cst_int i t = Cminor.Expr (Cminor.Cst (AST.Cst_int i), t) in
+  let cst_int (i : int) (t : AST.sig_type) : Cminor.expression =
+    Cminor.Expr (Cminor.Cst (AST.Cst_int i), t) in
   match ed, sub_exprs_res with
 
-  | Clight.Econst_int i, _ ->
-    assert false (* TODO M1 *)
+    | Clight.Econst_int i, _ ->
+      Cminor.Expr (Cminor.Cst (AST.Cst_int i), t_cminor)
 
-  | Clight.Econst_float _, _ -> error_float ()
+    | Clight.Econst_float _, _ -> error_float ()
 
-  | Clight.Evar x, _ when is_function_ctype t ->
-    Cminor.Expr (Cminor.Cst (AST.Cst_addrsymbol x), t_cminor)
+    | Clight.Evar x, _ when is_function_ctype t ->
+      Cminor.Expr (Cminor.Cst (AST.Cst_addrsymbol x), t_cminor)
 
-  | Clight.Evar x, _ -> translate_ident var_locs t_cminor x
+    | Clight.Evar x, _ -> translate_ident var_locs t_cminor x
 
-  | Clight.Ederef _, e :: _ when is_scalar_ctype t ->
-    Cminor.Expr (Cminor.Mem (quantity_of_ctype t, e), t_cminor)
+    | Clight.Ederef _, e :: _ when is_scalar_ctype t ->
+      Cminor.Expr (Cminor.Mem (quantity_of_ctype t, e), t_cminor)
 
-  | Clight.Ederef _, e :: _ ->
+    | Clight.Ederef _, e :: _ ->
     (* When dereferencing something pointing to a struct for instance, the
        result is the address of the struct. *)
     e
@@ -398,10 +421,7 @@ let rec f_expr var_locs (Clight.Expr (ed, t)) sub_exprs_res =
     assert false (* TODO M1 *)
 
   | Clight.Eandbool _, e1 :: e2 :: _ -> 
-    let zero = cst_int 0 t_cminor in
-    let one = cst_int 1 t_cminor in
-    let e2_cond = Cminor.Expr (Cminor.Cond (e2, one, zero), t_cminor) in
-    Cminor.Expr (Cminor.Cond (e1, e2_cond, zero), t_cminor)
+    assert false (* TODO M1 *)
 
   | Clight.Eorbool _, e1 :: e2 :: _ -> 
     let zero = cst_int 0 t_cminor in
@@ -456,7 +476,15 @@ and translate_expr var_locs e = ClightFold.expr2 (f_expr var_locs) e
 
 (* Translate statement *)
 
-let assign var_locs (Clight.Expr (ed, t) as e_res_clight) e_arg_cminor =
+(** [assign var_locs e_res_clight e_arg_cminor] returns the [Cminor] instruction
+    that consists in assigning the [Cminor] expression [e_arg_cminor] to the
+    translation of the [Clight] expression [e_res_clight]. This relies on the
+    variable locations [var_locs]. *)
+let assign
+    (var_locs : var_locations)
+    ((Clight.Expr (ed, t) as e_res_clight) : Clight.expr)
+    (e_arg_cminor : Cminor.expression)
+    : Cminor.statement =
   match ed with
     | Clight.Evar id when is_local_or_param id var_locs ->
       Cminor.St_assign (id, e_arg_cminor)
@@ -465,11 +493,31 @@ let assign var_locs (Clight.Expr (ed, t) as e_res_clight) e_arg_cminor =
       let addr = translate_addrof var_locs e_res_clight in
       Cminor.St_store (quantity, addr, e_arg_cminor)
 
-let call_sig ret_type args =
+(** [call_sig ret_type args] returns the signature where the return type is
+    [ret_type] and the type of the arguments is the type of the expressions
+    [args]. *)
+let call_sig
+    (ret_type : AST.type_return)
+    (args     : Cminor.expression list)
+    : AST.signature =
   { AST.args = List.map cminor_type_of args ;
     AST.res = ret_type }
 
-let f_stmt fresh var_locs stmt sub_exprs_res sub_stmts_res =
+(** [f_stmt fresh var_locs stmt sub_exprs_res sub_stmts_res] translates the
+    [Clight] statement [stmt] in a [Cminor] statement, where [var_locs] is the
+    location of the variables, [sub_exprs_res] is the translation of the
+    sub-expressions of [stmt], and [sub_stmts_res] is the translation of the
+    sub-statements of [stmt]. The translation might create new variables whose
+    fresh names can be created with [fresh]. In the end, the function returns
+    the list of the newly created variables along with the translation of the
+    statement. *)
+let f_stmt
+    (fresh         : unit -> string)
+    (var_locs      : var_locations)
+    (stmt          : Clight.statement)
+    (sub_exprs_res : Cminor.expression list)
+    (sub_stmts_res : ((AST.ident * Cminor.etype) list * Cminor.statement) list)
+    : (AST.ident * Cminor.etype) list * Cminor.statement =
   let (tmps, sub_stmts_res) = List.split sub_stmts_res in
   let tmps = List.flatten tmps in
 

@@ -35,6 +35,8 @@ type statement =
   | St_ifthenelse of expression * statement * statement
   | St_loop of statement
   | St_block of statement
+
+  (* [St_exit n] exits [n] St_block. *)
   | St_exit of int
 
   (* Switch. Parameters are the expression whose value is switch, a
