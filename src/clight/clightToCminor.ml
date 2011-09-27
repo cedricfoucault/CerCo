@@ -641,6 +641,8 @@ let translate_funct fresh globals (id, def) =
     | Clight.External (i,p,r) -> Cminor.F_ext (translate_external i p r) in
   (id, def)
 
+(** [translate p] translates the [Clight] program [p] into a [Cminor]
+    program. *)
 let translate p =
   let fresh = ClightAnnotator.make_fresh "_tmp" p in
   { Cminor.vars = List.map translate_global p.Clight.prog_vars ;
