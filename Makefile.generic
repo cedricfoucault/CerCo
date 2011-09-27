@@ -84,7 +84,6 @@ headers:
 clean:
 	@ $(OCAMLBUILD) -clean
 	make -C cparser clean 
-	make -C $(TESTDIR) clean
 	find -name '*~' -exec rm '{}' \;
 	rm -fr *~ $(TARGET) $(PACKAGE) $(PACKAGE).tar.gz
 

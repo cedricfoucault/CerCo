@@ -43,7 +43,10 @@ let quantity_of_sig_type = function
   | AST.Sig_offset -> AST.QOffset
   | AST.Sig_ptr -> AST.QPtr
 
-let quantity_of_ctype t = quantity_of_sig_type (sig_type_of_ctype t)
+(** [quantity_of_ctype t] returns the memory quantity that the [Clight] type [t]
+    represents. *)
+let quantity_of_ctype (t : Clight.ctype) : AST.quantity =
+  quantity_of_sig_type (sig_type_of_ctype t)
 
 let rec sizeof_ctype = function
   | Clight.Tvoid | Clight.Tfunction _ -> AST.SQ (AST.QInt 1)
@@ -76,7 +79,9 @@ let next_depth = function
   | AST.SProd l -> List.length l
   | _ -> raise (Failure "ClightToCminor.next_offset")
 
-let add_stack offset =
+(** [add_stack offset] returns the [Cminor] expression descriptor that adds the
+    offset [offset] to the stack pointer. *)
+let add_stack (offset : AST.abstract_offset) : Cminor.expr_descr =
   let e1 = Cminor.Expr (Cminor.Cst AST.Cst_stack, AST.Sig_ptr) in
   let e2 = Cminor.Expr (Cminor.Cst (AST.Cst_offset offset), AST.Sig_offset) in
   Cminor.Op2 (AST.Op_addp, e1, e2)
@@ -161,7 +166,9 @@ let is_function_ctype = function
   | Clight.Tfunction _ -> true
   | _ -> false
 
-let is_scalar_ctype : Clight.ctype -> bool = function
+(** [is_simple_ctype t] returns [true] if and only if the [Clight] type [t] is
+    a simple type (int or float or pointer). *)
+let is_simple_ctype : Clight.ctype -> bool = function
   | Clight.Tint _ | Clight.Tfloat _ | Clight.Tpointer _ -> true
   | _ -> false
 
@@ -358,7 +365,14 @@ let translate_ident
   assert false (* TODO M1 *)
 
 let translate_field res_type t e field =
-  assert false (* TODO M1 *)
+  let (fields, offset) = match t with
+    | Clight.Tstruct (_, fields) -> (fields, struct_offset t field fields)
+    | Clight.Tunion (_, fields) ->
+      (fields, Cminor.Expr (Cminor.Cst (AST.Cst_int 0), AST.Sig_offset))
+    | _ -> assert false (* type error *) in
+  let addr = Cminor.Expr (Cminor.Op2 (AST.Op_addp, e, offset), AST.Sig_ptr) in
+  let quantity = quantity_of_ctype (List.assoc field fields) in
+  Cminor.Expr (Cminor.Mem (quantity, addr), res_type)
 
 let translate_cast e src_type dest_type =
   let res_type = sig_type_of_ctype dest_type in
@@ -398,7 +412,7 @@ let rec f_expr
 
     | Clight.Evar x, _ -> translate_ident var_locs t_cminor x
 
-    | Clight.Ederef _, e :: _ when is_scalar_ctype t ->
+    | Clight.Ederef _, e :: _ when is_simple_ctype t ->
       Cminor.Expr (Cminor.Mem (quantity_of_ctype t, e), t_cminor)
 
     | Clight.Ederef _, e :: _ ->
