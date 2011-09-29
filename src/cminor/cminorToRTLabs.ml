@@ -82,30 +82,6 @@ let generate
   assert false (* TODO M1 *)
 
 
-(*
-(* [addressing e] returns the type of address represented by [e],
-   along with its arguments *)
-
-let addressing (Cminor.Expr (ed, t) : Cminor.expression)
-    : (RTLabs.addressing * Cminor.expression list)  =
-  match ed with
-    | Cminor.Cst (AST.Cst_addrsymbol id) -> (RTLabs.Aglobal (id, 0), [])
-    | Cminor.Cst (AST.Cst_stackoffset n) -> (RTLabs.Ainstack n, [])
-    | Cminor.Op2 (AST.Op_addp _,
-		  Cminor.Cst (AST.Cst_addrsymbol id),
-		  Cminor.Cst (AST.Cst_int n)) ->
-      (RTLabs.Aglobal (id, n), [])
-    | Cminor.Op2 (AST.Op_addp _, e1, Cminor.Cst (AST.Cst_int n)) ->
-      (RTLabs.Aindexed n, [e1])
-    | Cminor.Op2 (AST.Op_addp _,
-		  Cminor.Cst (AST.Cst_addrsymbol id),
-		  e2) ->
-      (RTLabs.Abased (id, 0), [e2])
-    | Cminor.Op2 (AST.Op_addp _, e1, e2) -> (RTLabs.Aindexed2, [e1 ; e2])
-    | _ -> (RTLabs.Aindexed 0, [e])
-*)
-
-
 (* Translating conditions *)
 
 let rec translate_branch
@@ -120,37 +96,6 @@ let rec translate_branch
   let rtlabs_fun = generate rtlabs_fun stmt in
   translate_expr rtlabs_fun lenv r e
 
-(*
-  let Cminor.Expr (ed, t) = e in
-  match ed with
-
-    | Cminor.Id x ->
-      let stmt =
-	RTLabs.St_cond1 (AST.Op_id, find_local lenv x, lbl_true, lbl_false) in
-      generate rtlabs_fun stmt
-
-    | Cminor.Cst cst ->
-      generate rtlabs_fun (RTLabs.St_condcst (cst, t, lbl_true, lbl_false))
-
-    | Cminor.Op1 (op1, e) ->
-      let (rtlabs_fun, r) = choose_destination rtlabs_fun lenv e in
-      let stmt = RTLabs.St_cond1 (op1, r, lbl_true, lbl_false) in
-      let rtlabs_fun = generate rtlabs_fun stmt in
-      translate_expr rtlabs_fun lenv r e
-
-    | Cminor.Op2 (op2, e1, e2) ->
-      let (rtlabs_fun, r1) = choose_destination rtlabs_fun lenv e1 in
-      let (rtlabs_fun, r2) = choose_destination rtlabs_fun lenv e2 in
-      let stmt = RTLabs.St_cond2 (op2, r1, r2, lbl_true, lbl_false) in
-      let rtlabs_fun = generate rtlabs_fun stmt in
-      translate_exprs rtlabs_fun lenv [r1 ; r2] [e1 ; e2]
-
-    | _ ->
-      let (rtlabs_fun, r) = choose_destination rtlabs_fun lenv e in
-      let stmt = RTLabs.St_cond1 (AST.Op_id, r, lbl_true, lbl_false) in
-      let rtlabs_fun = generate rtlabs_fun stmt in
-      translate_expr rtlabs_fun lenv r e
-*)
 
 (* Translating expressions *)
 
@@ -209,41 +154,6 @@ and translate_exprs
     : RTLabs.internal_function =
   let f destr e rtlabs_fun = translate_expr rtlabs_fun lenv destr e in
   List.fold_right2 f regs args rtlabs_fun
-
-
-(*
-(* Switch transformation
-
-   switch (e) {
-   case c0: exit i0;
-   case c1: exit i1;
-   ...
-   default: exit idfl; }
-
-   is translated to
-
-   if (e == c0) exit i0;
-   if (e == c1) exit i1;
-   ...
-   exit idfl; *)
-
-let transform_switch
-    (e : Cminor.expression)
-    (cases : (int * int) list)
-    (dfl : int)
-    : Cminor.statement =
-  let rec aux = function
-    | [] -> Cminor.St_skip
-    | (case, exit) :: cases ->
-      let c =
-	Cminor.Op2 (AST.Op_cmp (AST.Cmp_eq, uint),
-		    e, Cminor.Cst (AST.Cst_int case)) in
-      let stmt =
-	Cminor.St_ifthenelse (c, Cminor.St_exit exit, Cminor.St_skip) in
-      Cminor.St_seq (stmt, aux cases)
-  in
-  Cminor.St_seq (aux cases, Cminor.St_exit dfl)
-*)
 
 
 (* Translating statements *)
@@ -327,11 +237,6 @@ let rec translate_stmt
 
     | Cminor.St_switch (e, cases, dfl) ->
       assert false (* should have been simplified before *)
-(*
-      let stmt = transform_switch e cases dfl in
-      translate_stmt rtlabs_fun lenv exits stmt
-*)
-
     | Cminor.St_label (lbl, s) ->
       let rtlabs_fun = translate_stmt rtlabs_fun lenv exits s in
       let old_entry = rtlabs_fun.RTLabs.f_entry in
@@ -450,9 +355,6 @@ let assign_data x stmt (offsets, data) =
   let addr = Cminor.Expr (Cminor.Cst (AST.Cst_addrsymbol x), AST.Sig_ptr) in
   let e = Cminor.Expr (Cminor.Op2 (AST.Op_addp, addr, off), AST.Sig_ptr) in
   let stmt' = match data with
-(*
-    | AST.Data_reserve _ -> Cminor.St_skip
-*)
     | AST.Data_int8 i | AST.Data_int16 i | AST.Data_int32 i ->
       let (quantity, etype) = quantity_sig_of_data data in
       let cst = Cminor.Expr (Cminor.Cst (AST.Cst_int i), etype) in
