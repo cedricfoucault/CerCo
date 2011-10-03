@@ -21,6 +21,10 @@ let allocate (rtlabs_fun : RTLabs.internal_function) (sig_type : AST.sig_type)
 
 let type_of (Cminor.Expr (_, t)) = t
 
+(** [allocate_expr rtlabs_fun e] creates a fresh pseudo-register that is added
+    to the locals of the [RTLabs] function [rtlabs_fun] according to the type of
+    the [Cminor] expression [e], and then returns the [RTLabs] function obtained
+    along with the pseudo-register created. *)
 let allocate_expr
     (rtlabs_fun : RTLabs.internal_function)
     (e          : Cminor.expression)
@@ -29,6 +33,8 @@ let allocate_expr
 
 type local_env = Register.t StringTools.Map.t
 
+(** [find_local lenv x] returns the pseudo-register associated to the variable
+    [x] in the local environment [local_env]. *)
 let find_local (lenv : local_env) (x : AST.ident) : Register.t =
   if StringTools.Map.mem x lenv then StringTools.Map.find x lenv
   else error ("Unknown local \"" ^ x ^ "\".")
@@ -38,6 +44,9 @@ let find_olocal (lenv : local_env) (ox : AST.ident option) : Register.t option =
     | None -> None
     | Some x -> Some (find_local lenv x)
 
+(** [choose_destination rtlabs_fun lenv e] returns a pseudo-register in the
+    [RTLabs] function [rtlabs_fun] that can safely represent the [Cminor]
+    expression [e], considering the local environment [lenv]. *)
 let choose_destination
     (rtlabs_fun : RTLabs.internal_function)
     (lenv       : local_env)
@@ -55,9 +64,13 @@ let choose_destinations
     (rtlabs_fun, regs @ [r]) in
   List.fold_left f (rtlabs_fun, []) args
 
+(** [fresh_label rtlabs_fun] returns a fresh label from the point of view of the
+    graph of the [RTLabs] function [rtlabs_fun]. *)
 let fresh_label (rtlabs_fun : RTLabs.internal_function) : Label.t =
   Label.Gen.fresh rtlabs_fun.RTLabs.f_luniverse
 
+(** [change_entry rtlabs_fun new_entry] sets the label [new_entry] as the entry
+    label of the graph of the [RTLabs] function [rtlabs_fun]. *)
 let change_entry
     (rtlabs_fun : RTLabs.internal_function)
     (new_entry : Label.t)
@@ -65,8 +78,9 @@ let change_entry
   { rtlabs_fun with RTLabs.f_entry = new_entry }
 
 
-(* Add a label and its associated instruction at the beginning of a function's
-   graph *)
+(** [add_graph rtlabs_fun lbl stmt] adds the label [lbl] and its associated
+    statement [stmt] at the beginning of the graph of the [RTLabs] function
+    [rtlabs_fun]. *)
 let add_graph
     (rtlabs_fun : RTLabs.internal_function)
     (lbl        : Label.t)
@@ -75,6 +89,8 @@ let add_graph
   assert false (* TODO M1 *)
 
 
+(** [generate rtlabs_fun stmt] adds the statement [stmt] at the beginning of the
+    graph of the [RTLabs] function [rtlabs_fun]. *)
 let generate
     (rtlabs_fun : RTLabs.internal_function)
     (stmt       : RTLabs.statement)
@@ -84,6 +100,11 @@ let generate
 
 (* Translating conditions *)
 
+(** [translate_branch rtlabs_fun lenv e lbl_true lbl_false] adds instructions at
+    the beginning of the graph of the [RTLabs] function [rtlabs_fun] such that
+    the [Cminor] expression [e] is evaluated, and if it is different from 0 then
+    the flow will fall to the [lbl_true] label of the graph, and if it is 0 then
+    it will fall to the [lbl_false] label. *)
 let rec translate_branch
     (rtlabs_fun : RTLabs.internal_function)
     (lenv       : local_env)
@@ -99,6 +120,10 @@ let rec translate_branch
 
 (* Translating expressions *)
 
+(** [translate_expr rtlabs_fun lenv destr e] adds instructions at the beginning
+    of the graph of the [RTLabs] function [rtlabs_fun] such that the translation
+    of the [Cminor] expression [e] is assigned to the pseudo-register
+    [destr]. *)
 and translate_expr
     (rtlabs_fun : RTLabs.internal_function)
     (lenv       : local_env)
@@ -158,6 +183,11 @@ and translate_exprs
 
 (* Translating statements *)
 
+(** [translate_stmt rtlabs_fun lenv exits stmt] adds instructions at the
+    beginning of the graph of the [RTLabs] function [rtlabs_fun] such that
+    translates the [Cminor] statement [stmt]. [lenv] is the local environment
+    associating a pseudo-register to each variable of the [Cminor] program, and
+    [exits] are the labels associated to indices used in [exit] statements. *)
 let rec translate_stmt
     (rtlabs_fun : RTLabs.internal_function)
     (lenv       : local_env)
@@ -350,7 +380,14 @@ let quantity_sig_of_data data =
     | _ -> assert false (* do not use on these arguments *) in
   (AST.QInt i, AST.Sig_int (i, AST.Unsigned))
 
-let assign_data x stmt (offsets, data) =
+(** [assign_data x stmt (offsets, data)] adds statements at the end of the
+    [Cminor] statement [stmt] that assign the data [data] to the global pointer
+    [x] shifted by [offsets] ([data] might be broken into multiple pieces).  *)
+let assign_data
+    (x               : AST.ident)
+    (stmt            : Cminor.statement)
+    ((offsets, data) : (AST.abstract_offset list * AST.data))
+    : Cminor.statement =
   let off = sum_offsets offsets in
   let addr = Cminor.Expr (Cminor.Cst (AST.Cst_addrsymbol x), AST.Sig_ptr) in
   let e = Cminor.Expr (Cminor.Op2 (AST.Op_addp, addr, off), AST.Sig_ptr) in
@@ -362,7 +399,13 @@ let assign_data x stmt (offsets, data) =
     | AST.Data_float32 f | AST.Data_float64 f -> error_float () in
   Cminor.St_seq (stmt, stmt')
 
-let add_global_initializations_body vars body =
+(** [add_global_initializations_body vars body] adds statements at the beginning
+    of the statement [body] that make the initializations of the global
+    variables [vars]. *)
+let add_global_initializations_body
+    (vars : (AST.ident * AST.abstract_size * AST.data list option) list)
+    (body : Cminor.statement)
+    : Cminor.statement =
   assert false (* TODO M1 *)
 
 let add_global_initializations_funct vars = function
