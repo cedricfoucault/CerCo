@@ -4,6 +4,8 @@
 (* raises Not_found *)
 val pos : 'a -> 'a list -> int
 
+(** [reduce l1 l2] returns a splitting of the lists [l1] and [l2] at the index
+    that is the size of the smallest one. *)
 val reduce : 'a list -> 'b list -> ('a list * 'a list) * ('b list * 'b list)
 
 (* raise Failure "MiscPottier.map3" if the list arguments are not of the same

@@ -73,7 +73,7 @@ type statement =
      the condition is applied to, the label to go to when the result is not 0,
      and the label to go to when the result is 0. *)
   | St_bincon of Arch.bincon * Register.t * Register.t * Label.t * Label.t
-*)
+  *)
 
   (* Return the value of some registers (low bytes first). *)
   | St_return of registers

@@ -11,6 +11,7 @@ let error_float () = error "float not supported."
 
 (* Helpers *)
 
+(** [] *)
 let add_graph lbl stmt def =
   { def with RTL.f_graph = Label.Map.add lbl stmt def.RTL.f_graph }
 
@@ -32,6 +33,8 @@ let rec register_freshes runiverse n =
   if n <= 0 then []
   else (Register.fresh runiverse) :: (register_freshes runiverse (n-1))
 
+(** [choose_rest rest1 rest2] returns the non-empty list between [rest1] and
+    [rest2]. One of the list *must* be empty. *)
 let choose_rest rest1 rest2 = match rest1, rest2 with
   | [], _ -> rest2
   | _, [] -> rest1
@@ -72,11 +75,18 @@ let concrete_offset = Driver.TargetArchMemory.concrete_offset
 
 (* Local environment *)
 
+(* A local environment associates to each [RTLabs] pseudo-register a list of
+   [RTL] pseudo-register, depending on the size of its data (for instance, a
+   pointer might take several machine registers on some architectures). *)
 type local_env = Register.t list Register.Map.t
 
 let mem_local_env = Register.Map.mem
 let add_local_env = Register.Map.add
-let find_local_env = Register.Map.find
+
+(** [find_local_env r lenv] returns the list of [RTL] registers associated to
+    the [RTLabs] register [r] in the local environment [lenv]. *)
+let find_local_env : Register.t -> local_env -> Register.t list =
+  Register.Map.find
 
 let initialize_local_env runiverse registers result =
   let registers =
@@ -131,18 +141,24 @@ let change_label lbl = function
   | RTL.St_call (addr, args, retrs, _) -> RTL.St_call (addr, args, retrs, lbl)
   | RTL.St_tailcall (addr, args) -> RTL.St_tailcall (addr, args)
 
-(* Add a list of instruction in a graph, from one label to another, by creating
-   fresh labels inbetween. *)
-
-let rec adds_graph stmt_list start_lbl dest_lbl def = match stmt_list with
-  | [] -> add_graph start_lbl (RTL.St_skip dest_lbl) def
-  | [stmt] ->
-    add_graph start_lbl (change_label dest_lbl stmt) def
-  | stmt :: stmt_list ->
-    let tmp_lbl = fresh_label def in
-    let stmt = change_label tmp_lbl stmt in
-    let def = add_graph start_lbl stmt def in
-    adds_graph stmt_list tmp_lbl dest_lbl def
+(** [adds_graph stmt_list start_lbl dest_lbl def] adds the instructions
+    [stmt_list] in the graph of the [RTL] function [def] from label [start_lbl]
+    to label [dest_lbl] and by creating fresh labels inbetween. *)
+let rec adds_graph
+    (stmt_list : RTL.statement list)
+    (start_lbl : Label.t)
+    (dest_lbl  : Label.t)
+    (def       : RTL.internal_function)
+    : RTL.internal_function =
+  match stmt_list with
+    | [] -> add_graph start_lbl (RTL.St_skip dest_lbl) def
+    | [stmt] ->
+      add_graph start_lbl (change_label dest_lbl stmt) def
+    | stmt :: stmt_list ->
+      let tmp_lbl = fresh_label def in
+      let stmt = change_label tmp_lbl stmt in
+      let def = add_graph start_lbl stmt def in
+      adds_graph stmt_list tmp_lbl dest_lbl def
 
 (* Process a list of function that adds a list of instructions to a graph, from
    one label to another, and by creating fresh labels inbetween. *)
@@ -307,7 +323,18 @@ and translate_op1 genv op1 destrs srcrs start_lbl dest_lbl def = match op1 with
     translate_move genv destrs srcrs start_lbl dest_lbl def
 
 
-and translate_add destrs srcrs1 srcrs2 start_lbl dest_lbl def =
+(** [translate_add destrs srcrs1 srcrs2 start_lbl dest_lbl def] adds to the
+    graph of the [RTL] function definition [def] instructions from the label
+    [start_lbl] to the label [dest_lbl] that make the addition of the registers
+    [srcrs1] and [srcrs2] and put the result in the registers [destrs]. *)
+and translate_add
+    (destrs    : Register.t list)
+    (srcrs1    : Register.t list)
+    (srcrs2    : Register.t list)
+    (start_lbl : Label.t)
+    (dest_lbl  : Label.t)
+    (def       : RTL.internal_function)
+    : RTL.internal_function =
   assert false (* TODO M1 *)
 
 and translate_sub destrs srcrs1 srcrs2 start_lbl dest_lbl def =
@@ -459,7 +486,21 @@ and translate_cmp genv op last_op destrs srcrs1 srcrs2 start_lbl dest_lbl def =
 	start_lbl dest_lbl def
 
 
-and translate_op2 genv op2 destrs srcrs1 srcrs2 start_lbl dest_lbl def =
+(** [translate_op2 genv op2 destrs srcrs1 srcrs2 start_lbl dest_lbl def] adds to
+    the graph of the [RTL] function definition [def] instructions from the label
+    [start_lbl] to the label [dest_lbl] that applies the translation of the
+    [RTLabs] binary operation [op2] on the registers [srcrs1] and [srcrs2] and
+    put the result in the registers [destrs]. *)
+and translate_op2
+    (genv : global_env)
+    (op2 : AST.op2)
+    (destrs : Register.t list)
+    (srcrs1 : Register.t list)
+    (srcrs2 : Register.t list)
+    (start_lbl : Label.t)
+    (dest_lbl : Label.t)
+    (def : RTL.internal_function)
+    : RTL.internal_function =
   match op2, destrs, srcrs1, srcrs2 with
 
     | (AST.Op_add | AST.Op_addp), _, _, _ ->
@@ -510,7 +551,7 @@ and translate_op2 genv op2 destrs srcrs1 srcrs2 start_lbl dest_lbl def =
       translate_eq_ne Arch.OpEq destrs srcrs1 srcrs2 start_lbl dest_lbl def
 
     | (AST.Op_cmp AST.Cmp_ne | AST.Op_cmpu AST.Cmp_ne | AST.Op_cmpp AST.Cmp_ne),
-      _, _, _ ->
+	_, _, _ ->
       translate_eq_ne Arch.OpNe destrs srcrs1 srcrs2 start_lbl dest_lbl def
 
     | AST.Op_cmp AST.Cmp_lt, _, _, _ ->
@@ -592,82 +633,93 @@ let translate_store genv quantity addr srcrs start_lbl dest_lbl def =
     (init_tmpr :: init_tmp_addr :: translates) start_lbl dest_lbl def
 
 
-let translate_stmt genv lenv lbl stmt def = match stmt with
+(** [translate_stmt genv lenv lbl stmt def] adds to the graph of the [RTL]
+    function definition [def] the translation of the [RTLabs] statement [stmt]
+    from label [lbl], and considering [genv] as the global environment and
+    [lenv] as the local environment. *)
+let translate_stmt
+    (genv : global_env)
+    (lenv : local_env)
+    (lbl  : Label.t)
+    (stmt : RTLabs.statement)
+    (def  : RTL.internal_function)
+    : RTL.internal_function =
+  match stmt with
 
-  | RTLabs.St_skip lbl' ->
-    assert false (* TODO M1 *)
+    | RTLabs.St_skip lbl' ->
+      assert false (* TODO M1 *)
 
-  | RTLabs.St_cost (cost_lbl, lbl') ->
-    add_graph lbl (RTL.St_cost (cost_lbl, lbl')) def
+    | RTLabs.St_cost (cost_lbl, lbl') ->
+      add_graph lbl (RTL.St_cost (cost_lbl, lbl')) def
 
-  | RTLabs.St_cst (destr, cst, lbl') ->
-    translate_cst genv cst (find_local_env destr lenv) lbl lbl' def
+    | RTLabs.St_cst (destr, cst, lbl') ->
+      translate_cst genv cst (find_local_env destr lenv) lbl lbl' def
 
-  | RTLabs.St_op1 (op1, destr, srcr, lbl') ->
-    translate_op1 genv op1
-      (find_local_env destr lenv) (find_local_env srcr lenv)
-      lbl lbl' def
+    | RTLabs.St_op1 (op1, destr, srcr, lbl') ->
+      translate_op1 genv op1
+	(find_local_env destr lenv) (find_local_env srcr lenv)
+	lbl lbl' def
 
-  | RTLabs.St_op2 (op2, destr, srcr1, srcr2, lbl') ->
-    assert false (* TODO M1 *)
+    | RTLabs.St_op2 (op2, destr, srcr1, srcr2, lbl') ->
+      assert false (* TODO M1 *)
 
-  | RTLabs.St_load (quantity, addr, destr, lbl') ->
-    translate_load genv quantity
-      (find_local_env addr lenv) (find_local_env destr lenv)
-      lbl lbl' def
+    | RTLabs.St_load (quantity, addr, destr, lbl') ->
+      translate_load genv quantity
+	(find_local_env addr lenv) (find_local_env destr lenv)
+	lbl lbl' def
 
-  | RTLabs.St_store (quantity, addr, srcr, lbl') ->
-    translate_store genv quantity
-      (find_local_env addr lenv) (find_local_env srcr lenv)
-      lbl lbl' def
+    | RTLabs.St_store (quantity, addr, srcr, lbl') ->
+      translate_store genv quantity
+	(find_local_env addr lenv) (find_local_env srcr lenv)
+	lbl lbl' def
 
-  | RTLabs.St_call_id (f, args, None, _, lbl') ->
-    let (def, addr) = fresh_pointer def in
-    add_translates
-      [translate_cst genv (AST.Cst_addrsymbol f) addr ;
-       adds_graph [RTL.St_call (addr, rtl_args args lenv, [], lbl)]]
-      lbl lbl' def
+    | RTLabs.St_call_id (f, args, None, _, lbl') ->
+      let (def, addr) = fresh_pointer def in
+      add_translates
+	[translate_cst genv (AST.Cst_addrsymbol f) addr ;
+	 adds_graph [RTL.St_call (addr, rtl_args args lenv, [], lbl)]]
+	lbl lbl' def
 
-  | RTLabs.St_call_id (f, args, Some retr, _, lbl') ->
-    let (def, addr) = fresh_pointer def in
-    let retrs = find_local_env retr lenv in
-    add_translates
-      [translate_cst genv (AST.Cst_addrsymbol f) addr ;
-       adds_graph [RTL.St_call (addr, rtl_args args lenv, retrs, lbl)]]
-      lbl lbl' def
+    | RTLabs.St_call_id (f, args, Some retr, _, lbl') ->
+      let (def, addr) = fresh_pointer def in
+      let retrs = find_local_env retr lenv in
+      add_translates
+	[translate_cst genv (AST.Cst_addrsymbol f) addr ;
+	 adds_graph [RTL.St_call (addr, rtl_args args lenv, retrs, lbl)]]
+	lbl lbl' def
 
-  | RTLabs.St_call_ptr (f, args, None, _, lbl') ->
-    let addr = find_local_env f lenv in
-    add_graph lbl (RTL.St_call (addr, rtl_args args lenv, [], lbl')) def
+    | RTLabs.St_call_ptr (f, args, None, _, lbl') ->
+      let addr = find_local_env f lenv in
+      add_graph lbl (RTL.St_call (addr, rtl_args args lenv, [], lbl')) def
 
-  | RTLabs.St_call_ptr (f, args, Some retr, _, lbl') ->
-    let addr = find_local_env f lenv in
-    add_graph lbl
-      (RTL.St_call (addr, rtl_args args lenv, find_local_env retr lenv, lbl'))
-      def
+    | RTLabs.St_call_ptr (f, args, Some retr, _, lbl') ->
+      let addr = find_local_env f lenv in
+      add_graph lbl
+	(RTL.St_call (addr, rtl_args args lenv, find_local_env retr lenv, lbl'))
+	def
 
-  | RTLabs.St_tailcall_id (f, args, _) ->
-    let (def, addr) = fresh_pointer def in
-    add_translates
-      [translate_cst genv (AST.Cst_addrsymbol f) addr ;
-       adds_graph [RTL.St_tailcall (addr, rtl_args args lenv)]]
-      lbl lbl def
+    | RTLabs.St_tailcall_id (f, args, _) ->
+      let (def, addr) = fresh_pointer def in
+      add_translates
+	[translate_cst genv (AST.Cst_addrsymbol f) addr ;
+	 adds_graph [RTL.St_tailcall (addr, rtl_args args lenv)]]
+	lbl lbl def
 
-  | RTLabs.St_tailcall_ptr (f, args, _) ->
-    let addr = find_local_env f lenv in
-    add_graph lbl (RTL.St_tailcall (addr, rtl_args args lenv)) def
+    | RTLabs.St_tailcall_ptr (f, args, _) ->
+      let addr = find_local_env f lenv in
+      add_graph lbl (RTL.St_tailcall (addr, rtl_args args lenv)) def
 
-  | RTLabs.St_cond (r, lbl_true, lbl_false) ->
-    translate_cond (find_local_env r lenv) lbl lbl_true lbl_false def
+    | RTLabs.St_cond (r, lbl_true, lbl_false) ->
+      translate_cond (find_local_env r lenv) lbl lbl_true lbl_false def
 
-  | RTLabs.St_jumptable _ ->
-    error "Jump tables not supported yet."
+    | RTLabs.St_jumptable _ ->
+      error "Jump tables not supported yet."
 
-  | RTLabs.St_return None ->
-    add_graph lbl (RTL.St_return []) def
+    | RTLabs.St_return None ->
+      add_graph lbl (RTL.St_return []) def
 
-  | RTLabs.St_return (Some r) ->
-    add_graph lbl (RTL.St_return (find_local_env r lenv)) def
+    | RTLabs.St_return (Some r) ->
+      add_graph lbl (RTL.St_return (find_local_env r lenv)) def
 
 
 let translate_internal genv def =
