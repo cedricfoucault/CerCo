@@ -242,14 +242,14 @@ let findlabel lbl st k =
 	   None -> fdlbl k s2
 	 | Some(v) -> Some(v)
       )
-  | St_loop(s)                  -> fdlbl (Ct_cont(St_loop(s),k)) s
-  | St_block(s)                 -> fdlbl (Ct_endblock(k)) s
-  | St_exit(_)                  -> None
-  | St_switch(_,_,_)            -> None
-  | St_return(_)                -> None
-  | St_label(l,s)               -> if l=lbl then Some((s,k)) else None 
-  | St_goto(_)                  -> None
-  | St_cost (_,s)               -> fdlbl k s
+  | St_loop(s)                     -> fdlbl (Ct_cont(St_loop(s),k)) s
+  | St_block(s)                    -> fdlbl (Ct_endblock(k)) s
+  | St_exit(_)                     -> None
+  | St_switch(_,_,_)               -> None
+  | St_return(_)                   -> None
+  | St_label(l,s) when l = lbl     -> Some((s,k))
+  | St_goto(_)                     -> None
+  | St_cost (_,s) | St_label (_,s) -> fdlbl k s
   in match fdlbl k st with
       None -> assert false (*Wrong label*)
     | Some(v) -> v 
