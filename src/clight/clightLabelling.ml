@@ -104,11 +104,10 @@ let rec add_cost_labels_st cost_universe = function
       add_ending_cost_label cost_universe
 	(Swhile (add_cost_labels_e cost_universe e, s'))
   | Sdowhile (e,s) ->
-      let s1 = add_cost_labels_st cost_universe s in
-      let s2 = add_cost_labels_st cost_universe s in
-      let s2' = add_starting_cost_label cost_universe s2 in
+      let s = add_cost_labels_st cost_universe s in
+      let s' = add_starting_cost_label cost_universe s in
       add_ending_cost_label cost_universe
-	(Ssequence (s1, Swhile (add_cost_labels_e cost_universe e, s2')))
+	(Sdowhile (add_cost_labels_e cost_universe e, s'))
   | Sfor (s1,e,s2,s3) ->
       let s1' = add_cost_labels_st cost_universe s1 in
       let s2' = add_cost_labels_st cost_universe s2 in
