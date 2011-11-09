@@ -362,7 +362,18 @@ let translate_ident
     (res_type : AST.sig_type)
     (x : AST.ident)
     : Cminor.expression =
-  assert false (* TODO M1 *)
+  let ed = match find_var_locs x var_locs with
+    | (Local, _) | (Param, _) -> Cminor.Id x
+    | (LocalStack off, t) | (ParamStack off, t) when is_simple_ctype t ->
+      let addr = Cminor.Expr (add_stack off, AST.Sig_ptr) in
+      Cminor.Mem (quantity_of_ctype t, addr)
+    | (LocalStack off, _) | (ParamStack off, _) ->
+      add_stack off
+    | (Global, t) when is_simple_ctype t ->
+      let addr = Cminor.Expr (Cminor.Cst (AST.Cst_addrsymbol x), AST.Sig_ptr) in
+      Cminor.Mem (quantity_of_ctype t, addr)
+    | (Global, _) -> Cminor.Cst (AST.Cst_addrsymbol x) in
+  Cminor.Expr (ed, res_type)
 
 let translate_field res_type t e field =
   let (fields, offset) = match t with
@@ -432,10 +443,13 @@ let rec f_expr
   | Clight.Ecast (t, Clight.Expr (_, t')), e :: _ -> translate_cast e t' t
 
   | Clight.Econdition _, e1 :: e2 :: e3 :: _ ->
-    assert false (* TODO M1 *)
+    Cminor.Expr (Cminor.Cond (e1, e2, e3), t_cminor)
 
   | Clight.Eandbool _, e1 :: e2 :: _ -> 
-    assert false (* TODO M1 *)
+    let zero = cst_int 0 t_cminor in
+    let one = cst_int 1 t_cminor in
+    let e2_cond = Cminor.Expr (Cminor.Cond (e2, one, zero), t_cminor) in
+    Cminor.Expr (Cminor.Cond (e1, e2_cond, zero), t_cminor)
 
   | Clight.Eorbool _, e1 :: e2 :: _ -> 
     let zero = cst_int 0 t_cminor in
@@ -546,10 +560,22 @@ let f_stmt
       ([], Cminor.St_call (None, f, args, call_sig AST.Type_void args))
 
     | Clight.Scall (Some e, _, _), _ :: f :: args, _ ->
-      assert false (* TODO M1 *)
+      let t = sig_type_of_ctype (clight_type_of e) in
+      let tmp = fresh () in
+      let tmpe = Cminor.Expr (Cminor.Id tmp, t) in
+      let stmt_call =
+	Cminor.St_call (Some tmp, f, args, call_sig (AST.Type_ret t) args) in
+      let stmt_assign = assign var_locs e tmpe in
+      ([(tmp, t)], Cminor.St_seq (stmt_call, stmt_assign))
 
     | Clight.Swhile _, e :: _, stmt :: _ ->
-      assert false (* TODO M1 *)
+      let econd =
+	Cminor.Expr (Cminor.Op1 (AST.Op_notbool, e), cminor_type_of e) in
+      let scond =
+	Cminor.St_ifthenelse (econd, Cminor.St_exit 0, Cminor.St_skip) in
+      ([],
+       Cminor.St_block (Cminor.St_loop (Cminor.St_seq (scond,
+						       Cminor.St_block stmt))))
 
     | Clight.Sdowhile _, e :: _, stmt :: _ ->
       let econd =
@@ -572,10 +598,10 @@ let f_stmt
 			(Cminor.St_loop (Cminor.St_seq (scond, body)))))
 
     | Clight.Sifthenelse _, e :: _, stmt1 :: stmt2 :: _ ->
-      assert false (* TODO M1 *)
+      ([], Cminor.St_ifthenelse (e, stmt1, stmt2))
 
     | Clight.Ssequence _, _, stmt1 :: stmt2 :: _ ->
-      assert false (* TODO M1 *)
+      ([], Cminor.St_seq (stmt1, stmt2))
 
     | Clight.Sbreak, _, _ -> ([], Cminor.St_exit 1)
 

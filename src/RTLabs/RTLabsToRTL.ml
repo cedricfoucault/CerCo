@@ -335,7 +335,48 @@ and translate_add
     (dest_lbl  : Label.t)
     (def       : RTL.internal_function)
     : RTL.internal_function =
-  assert false (* TODO M1 *)
+  let ((srcrs1_common, srcrs1_rest), (srcrs2_common, srcrs2_rest)) =
+    MiscPottier.reduce srcrs1 srcrs2 in
+  let srcrs_rest = choose_rest srcrs1_rest srcrs2_rest in
+  let ((destrs_common, destrs_rest), _) =
+    MiscPottier.reduce destrs srcrs1_common in
+  let ((destrs_cted, destrs_rest), (srcrs_cted, _)) =
+    MiscPottier.reduce destrs_rest srcrs_rest in
+  let (def, zero) = fresh_reg def in
+  let (def, carry) = fresh_reg def in
+  let (def, tmp_srcr1) = fresh_reg def in
+  let (def, tmp_srcr2) = fresh_reg def in
+  let (def, tmpr) = fresh_reg def in
+  let insts_init =
+    [RTL.St_int (zero, 0, start_lbl) ;
+     RTL.St_int (carry, 0, start_lbl)] in
+  let f_add destr srcr1 srcr2 =
+    [RTL.St_move (tmp_srcr1, srcr1, start_lbl) ;
+     RTL.St_move (tmp_srcr2, srcr2, start_lbl) ;
+     RTL.St_binop (Arch.OpAdd, destr, srcr1, srcr2, start_lbl) ;
+     RTL.St_binop (Arch.OpAdd, destr, destr, carry, start_lbl) ;
+     RTL.St_binop (Arch.OpLtu, tmpr, destr, tmp_srcr1, start_lbl) ;
+     RTL.St_binop (Arch.OpLtu, carry, destr, tmp_srcr2, start_lbl) ;
+     RTL.St_binop (Arch.OpOr, carry, tmpr, carry, start_lbl)] in
+  let insts_add =
+    List.flatten
+      (MiscPottier.map3 f_add destrs_common srcrs1_common srcrs2_common) in
+  let f_add_cted destr srcr =
+    [RTL.St_move (tmp_srcr1, srcr, start_lbl) ;
+     RTL.St_binop (Arch.OpAdd, destr, srcr, carry, start_lbl) ;
+     RTL.St_binop (Arch.OpLtu, tmpr, destr, tmp_srcr1, start_lbl) ;
+     RTL.St_binop (Arch.OpLtu, carry, destr, carry, start_lbl) ;
+     RTL.St_binop (Arch.OpOr, carry, tmpr, carry, start_lbl)] in
+  let insts_add_cted =
+    List.flatten (List.map2 f_add_cted destrs_cted srcrs_cted) in
+  let f_rest destr =
+    [RTL.St_binop (Arch.OpAdd, destr, zero, carry, start_lbl) ;
+     RTL.St_binop (Arch.OpLtu, tmpr, destr, zero, start_lbl) ;
+     RTL.St_binop (Arch.OpLtu, carry, destr, carry, start_lbl) ;
+     RTL.St_binop (Arch.OpOr, carry, tmpr, carry, start_lbl)] in
+  let insts_rest = List.flatten (List.map f_rest destrs_rest) in
+  adds_graph (insts_init @ insts_add @ insts_add_cted @ insts_rest)
+    start_lbl dest_lbl def
 
 and translate_sub destrs srcrs1 srcrs2 start_lbl dest_lbl def =
   let ((srcrs1_common, srcrs1_rest), (srcrs2_common, srcrs2_rest)) =
@@ -647,7 +688,7 @@ let translate_stmt
   match stmt with
 
     | RTLabs.St_skip lbl' ->
-      assert false (* TODO M1 *)
+      add_graph lbl (RTL.St_skip lbl') def
 
     | RTLabs.St_cost (cost_lbl, lbl') ->
       add_graph lbl (RTL.St_cost (cost_lbl, lbl')) def
@@ -661,7 +702,8 @@ let translate_stmt
 	lbl lbl' def
 
     | RTLabs.St_op2 (op2, destr, srcr1, srcr2, lbl') ->
-      assert false (* TODO M1 *)
+      translate_op2 genv op2 (find_local_env destr lenv)
+	(find_local_env srcr1 lenv) (find_local_env srcr2 lenv) lbl lbl' def
 
     | RTLabs.St_load (quantity, addr, destr, lbl') ->
       translate_load genv quantity

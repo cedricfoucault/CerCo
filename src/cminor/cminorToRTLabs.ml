@@ -52,7 +52,9 @@ let choose_destination
     (lenv       : local_env)
     (e          : Cminor.expression)
     : RTLabs.internal_function * Register.t =
-  assert false (* TODO M1 *)
+  match e with
+    | Cminor.Expr (Cminor.Id x, _) -> (rtlabs_fun, find_local lenv x)
+    | _ -> allocate_expr rtlabs_fun e
 
 let choose_destinations
     (rtlabs_fun : RTLabs.internal_function)
@@ -86,7 +88,9 @@ let add_graph
     (lbl        : Label.t)
     (stmt       : RTLabs.statement)
     : RTLabs.internal_function =
-  assert false (* TODO M1 *)
+  let graph = Label.Map.add lbl stmt rtlabs_fun.RTLabs.f_graph in
+  let rtlabs_fun = { rtlabs_fun with RTLabs.f_graph = graph } in
+  change_entry rtlabs_fun lbl
 
 
 (** [generate rtlabs_fun stmt] adds the statement [stmt] at the beginning of the
@@ -95,7 +99,8 @@ let generate
     (rtlabs_fun : RTLabs.internal_function)
     (stmt       : RTLabs.statement)
     : RTLabs.internal_function =
-  assert false (* TODO M1 *)
+  let lbl = fresh_label rtlabs_fun in
+  add_graph rtlabs_fun lbl stmt
 
 
 (* Translating conditions *)
@@ -134,7 +139,13 @@ and translate_expr
   match ed with
 
     | Cminor.Id x ->
-      assert false (* TODO M1 *)
+      let xr = find_local lenv x in
+      (* If the destination and source are the same, just do nothing. *)
+      if Register.equal destr xr then rtlabs_fun
+      else
+	let old_entry = rtlabs_fun.RTLabs.f_entry in
+	let stmt = RTLabs.St_op1 (AST.Op_id, destr, xr, old_entry) in
+	generate rtlabs_fun stmt
 
     | Cminor.Cst cst ->
       let old_entry = rtlabs_fun.RTLabs.f_entry in
@@ -164,7 +175,13 @@ and translate_expr
       translate_expr rtlabs_fun lenv r e
 
     | Cminor.Cond (e1, e2, e3) ->
-      assert false (* TODO M1 *)
+      let old_entry = rtlabs_fun.RTLabs.f_entry in
+      let rtlabs_fun = translate_expr rtlabs_fun lenv destr e3 in
+      let lbl_false = rtlabs_fun.RTLabs.f_entry in
+      let rtlabs_fun = change_entry rtlabs_fun old_entry in
+      let rtlabs_fun = translate_expr rtlabs_fun lenv destr e2 in
+      let lbl_true = rtlabs_fun.RTLabs.f_entry in
+      translate_branch rtlabs_fun lenv e1 lbl_true lbl_false
 
     | Cminor.Exp_cost (lbl, e) ->
       let rtlabs_fun = translate_expr rtlabs_fun lenv destr e in
@@ -199,7 +216,7 @@ let rec translate_stmt
     | Cminor.St_skip -> rtlabs_fun
 
     | Cminor.St_assign (x, e) ->
-      assert false (* TODO M1 *)
+      translate_expr rtlabs_fun lenv (find_local lenv x) e
 
     | Cminor.St_store (chunk, e1, e2) ->
       let (rtlabs_fun, addr) = choose_destination rtlabs_fun lenv e1 in
@@ -243,13 +260,24 @@ let rec translate_stmt
       translate_exprs rtlabs_fun lenv (fr :: regs) (f :: args)
 
     | Cminor.St_seq (s1, s2) ->
-      assert false (* TODO M1 *)
+      let rtlabs_fun = translate_stmt rtlabs_fun lenv exits s2 in
+      translate_stmt rtlabs_fun lenv exits s1
 
     | Cminor.St_ifthenelse (e, s1, s2) ->
-      assert false (* TODO M1 *)
+      let old_entry = rtlabs_fun.RTLabs.f_entry in
+      let rtlabs_fun = translate_stmt rtlabs_fun lenv exits s2 in
+      let lbl_false = rtlabs_fun.RTLabs.f_entry in
+      let rtlabs_fun = change_entry rtlabs_fun old_entry in
+      let rtlabs_fun = translate_stmt rtlabs_fun lenv exits s1 in
+      let lbl_true = rtlabs_fun.RTLabs.f_entry in
+      translate_branch rtlabs_fun lenv e lbl_true lbl_false
 
     | Cminor.St_loop s ->
-      assert false (* TODO M1 *)
+      let loop_start = fresh_label rtlabs_fun in
+      let rtlabs_fun = change_entry rtlabs_fun loop_start in
+      let rtlabs_fun = translate_stmt rtlabs_fun lenv exits s in
+      let old_entry = rtlabs_fun.RTLabs.f_entry in
+      add_graph rtlabs_fun loop_start (RTLabs.St_skip old_entry)
 
     | Cminor.St_block s ->
       let old_entry = rtlabs_fun.RTLabs.f_entry in
@@ -406,7 +434,16 @@ let add_global_initializations_body
     (vars : (AST.ident * AST.abstract_size * AST.data list option) list)
     (body : Cminor.statement)
     : Cminor.statement =
-  assert false (* TODO M1 *)
+  let f stmt (x, size, datas_opt) = match datas_opt with
+    | None -> Cminor.St_skip
+    | Some datas ->
+      let offsets = Memory.all_offsets size in
+      if List.length offsets <> List.length datas then
+	error "bad global initialization style."
+      else
+	let offs_datas = List.combine offsets datas in
+	List.fold_left (assign_data x) stmt offs_datas in
+  Cminor.St_seq (List.fold_left f Cminor.St_skip vars, body)
 
 let add_global_initializations_funct vars = function
   | Cminor.F_int def ->
