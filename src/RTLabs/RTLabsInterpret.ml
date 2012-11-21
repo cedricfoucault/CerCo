@@ -157,16 +157,83 @@ let interpret_statement
 	    (get_value lenv srcr2) in
 	assign_state sfrs graph sp lbl lenv mem trace destr v
 
+      | RTLabs.St_addi (i, srcr, destr, lbl) ->
+        (* retrieve the integer value from constant i *)
+        let i_val = match i with
+        | AST.Cst_int v -> v
+        | _ -> failwith "addi statement should be given an integer constant"
+        in
+        (* retrieve the signature of an integer *)
+        let int_sig = AST.Sig_int (Val.int_size, AST.Signed) in
+        (* evaluate the value (srcr + i) *)
+        let v = Eval.op2
+          (get_type lenv destr) (get_type lenv srcr) int_sig
+          AST.Op_add
+          (get_value lenv srcr)
+          (Val.of_int i_val)
+        in
+        (* put this value in destr *)
+        assign_state sfrs graph sp lbl lenv mem trace destr v
+        (* failwith "not implemented yet" *)
+
       | RTLabs.St_load (q, addr, destr, lbl) ->
 	let addr = address_of_value (get_value lenv addr) in
 	let v = Mem.loadq mem q addr in
 	assign_state sfrs graph sp lbl lenv mem trace destr v
+
+      | RTLabs.St_loadi (q, i, addr, destr, lbl) ->
+        (* retrieve the integer value from constant i *)
+        let i_val = match i with
+        | AST.Cst_int v -> v
+        | _ -> failwith "addi statement should be given an integer constant"
+        in
+        (* retrieve the signature of an integer *)
+        let int_sig = AST.Sig_int (Val.int_size, AST.Signed) in
+        (* evaluate (addr + i) *)
+        let v = Eval.op2
+          (get_type lenv addr) (get_type lenv addr) int_sig
+          AST.Op_add
+          (get_value lenv addr)
+          (Val.of_int i_val)
+        in
+        (* get the address from the calculated value *)
+        let addr = address_of_value v in
+        (* load the stored value from memory *)
+        let v = Mem.loadq mem q addr in
+        (* put this value in destr *)
+        assign_state sfrs graph sp lbl lenv mem trace destr v
+        (* failwith "not implemented yet" *)
 
       | RTLabs.St_store (q, addr, srcr, lbl) ->
 	let addr = address_of_value (get_value lenv addr) in
 	let v = get_value lenv srcr in
 	let mem = Mem.storeq mem q addr v in
 	State (sfrs, graph, sp, lbl, lenv, mem, trace)
+
+      | RTLabs.St_storei (q, i, addr, srcr, lbl) ->
+        (* retrieve the integer value from constant i *)
+        let i_val = match i with
+        | AST.Cst_int v -> v
+        | _ -> failwith "addi statement should be given an integer constant"
+        in
+        (* retrieve the signature of an integer *)
+        let int_sig = AST.Sig_int (Val.int_size, AST.Signed) in
+        (* evaluate (addr + i) *)
+        let v = Eval.op2
+          (get_type lenv srcr) (get_type lenv srcr) int_sig
+          AST.Op_add
+          (get_value lenv addr)
+          (Val.of_int i_val)
+        in
+        (* get the address from the calculated value *)
+        let addr = address_of_value v in
+        (* get the value to store *)
+        let v = get_value lenv srcr in
+        (* store this value at the address previously computed *)
+        let mem = Mem.storeq mem q addr v in
+        (* return the new state *)
+        State (sfrs, graph, sp, lbl, lenv, mem, trace)
+        (* failwith "not implemented yet" *)
 
       | RTLabs.St_call_id (f, args, destr, sg, lbl) ->
 	let f_def = find_function mem f in
@@ -205,6 +272,34 @@ let interpret_statement
       | RTLabs.St_cond (srcr, lbl_true, lbl_false) ->
 	let v = get_value lenv srcr in
 	branch_state sfrs graph sp lbl_true lbl_false lenv mem trace v
+
+      | RTLabs.St_cond_cmpz (cmp, srcr, lbl_true, lbl_false) ->
+        (* retrieve the signature of the integer constant 0 *)
+        let int_sig = AST.Sig_int (Val.int_size, AST.Signed) in
+        (* retrieve the binary operator from cmp *)
+        let op2_cmp = AST.Op_cmp cmp in
+        (* evaluate the comparison with zero *)
+        let v = Eval.op2
+    	    (get_type lenv srcr) (get_type lenv srcr) int_sig
+    	    op2_cmp
+    	    (get_value lenv srcr)
+    	    (Val.of_int 0)
+    	  in
+    	  (* do the conditional branch on the result *)
+    	  branch_state sfrs graph sp lbl_true lbl_false lenv mem trace v
+
+    	| RTLabs.St_cond_cmp (cmp, srcr1, srcr2, lbl_true, lbl_false) ->
+    	  (* retrieve the binary operator from cmp *)
+        let op2_cmp = AST.Op_cmp cmp in
+        (* evaluate the comparison between srcr1 and srcr2 *)
+        let v = Eval.op2
+    	    (get_type lenv srcr1) (get_type lenv srcr1) (get_type lenv srcr2)
+    	    op2_cmp
+    	    (get_value lenv srcr1)
+    	    (get_value lenv srcr2)
+    	  in
+    	  (* do the conditional branch on the result *)
+    	  branch_state sfrs graph sp lbl_true lbl_false lenv mem trace v
 
 (*
       | RTLabs.St_condcst (cst, t, lbl_true, lbl_false) ->

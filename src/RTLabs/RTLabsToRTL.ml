@@ -762,6 +762,8 @@ let translate_stmt
 
     | RTLabs.St_return (Some r) ->
       add_graph lbl (RTL.St_return (find_local_env r lenv)) def
+      
+    | _ -> assert false
 
 
 let translate_internal genv def =

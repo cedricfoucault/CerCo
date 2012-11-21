@@ -1,1 +1,1 @@
-let parser_lib = "/home/guiloooo/fac/m2/compilation/projet/CerCo/lib"
+let parser_lib = "/Users/cedric/Documents/tp/compilation/projet1/CerCo/lib"

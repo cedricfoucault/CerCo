@@ -31,19 +31,40 @@ type statement =
   | St_op1 of AST.op1 * Register.t * Register.t * Label.t
 
   (* Application of a binary operation. Parameters are the operation, the
-     destination register, the two argument registers and the label of the next
-     statement. *)
+     destination register, the two argument registers and the label of the
+     next statement. *)
   | St_op2 of AST.op2 * Register.t * Register.t * Register.t * Label.t
+
+  (* Add integer statement. Parameters are the integer constant to add,
+     the source register, the destination register and the label of the
+     next statement*)
+  | St_addi of AST.cst * Register.t * Register.t * Label.t
 
   (* Memory load. Parameters are the size in bytes of what to load, the
      register containing the address, the destination register and the label
      of the next statement. *)
   | St_load of AST.quantity * Register.t * Register.t * Label.t
 
+  (* Memory load with offset addressing.
+     Parameters are the size in bytes of what to load,
+     the integer offset to add to the refence address,
+     the register containing the reference address,
+     the destination register where we store the loaded value,
+     and the label of the next statement. *)
+  | St_loadi of AST.quantity * AST.cst * Register.t * Register.t * Label.t
+
   (* Memory store. Parameters are the size in bytes of what to store, the
      register containing the address, the source register and the label of the
      next statement. *)
   | St_store of AST.quantity * Register.t * Register.t * Label.t
+
+  (* Memory store with offset addressing.
+     Parameters are the size in bytes of what to store,
+     the integer offset to add to the reference address,
+     the register containing the reference address,
+     the source register from which we take the value to store,
+     and the label of the next statement. *)
+  | St_storei of AST.quantity * AST.cst * Register.t * Register.t * Label.t
 
   (* Call to a function given its name. Parameters are the name of the
      function, the arguments of the function, the destination
@@ -77,6 +98,21 @@ type statement =
      label to go to when the value evaluates to true (not 0), and the label
      to go to when the value evaluates to false (0). *)
   | St_cond of Register.t * Label.t * Label.t
+  
+  (* Conditional branch based on comparison to zero.
+     Parameters are the comparison operator used (lt, le, gt, ge, eq, neq),
+     the register holding the value to compare to zero,
+     the label to go to when the comparison is verified,
+     and the label to go to when it is not (next instruction). *)
+  | St_cond_cmpz of AST.cmp * Register.t * Label.t * Label.t
+  
+  (* Conditional branch based on comparison to zero.
+     Parameters are the comparison operator used (lt, le, gt, ge, eq, neq),
+     the register holding the value to compare (left operand),
+     the register holding the value to compare (right operand),
+     the label to go to when the comparison is verified,
+     and the label to go to when it is not (next instruction). *)
+  | St_cond_cmp of AST.cmp * Register.t * Register.t * Label.t * Label.t
 
   (* Jump statement. Parameters are a register and a list of
      labels. The execution will go to the [n]th label of the list of

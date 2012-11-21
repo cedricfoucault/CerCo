@@ -154,18 +154,36 @@ let print_statement = function
 	(print_reg srcr1)
 	(print_reg srcr2)
 	lbl
+  | RTLabs.St_addi (i, srcr, destr, lbl) ->
+      Printf.sprintf "addi %s, %s, %s --> %s"
+      (print_reg destr)
+      (print_reg srcr)
+      (print_cst i)
+      lbl
   | RTLabs.St_load (q, addr, destr, lbl) ->
       Printf.sprintf "load %s, %s, %s --> %s"
 	(Memory.string_of_quantity q)
 	(print_reg addr)
 	(print_reg destr)
 	lbl
+  | RTLabs.St_loadi (q, i, addr, destr, lbl) ->
+      Printf.sprintf "lw %s, %s(%s) --> %s"
+      (print_reg destr)
+      (print_cst i)
+      (print_reg addr)
+      lbl
   | RTLabs.St_store (q, addr, srcr, lbl) ->
       Printf.sprintf "store %s, %s, %s --> %s"
 	(Memory.string_of_quantity q)
 	(print_reg addr)
 	(print_reg srcr)
 	lbl
+	| RTLabs.St_storei (q, i, addr, srcr, lbl) ->
+      Printf.sprintf "sw %s, %s(%s) --> %s"
+      (print_reg srcr)
+      (print_cst i)
+      (print_reg addr)
+      lbl
   | RTLabs.St_call_id (f, args, res, sg, lbl) ->
       Printf.sprintf "call \"%s\", %s, %s: %s --> %s"
 	f
@@ -195,6 +213,19 @@ let print_statement = function
 	(print_reg r)
 	lbl_true
 	lbl_false
+  | RTLabs.St_cond_cmpz (cmp, srcr, lbl_true, lbl_false) ->
+      Printf.sprintf "b%sz %s? --> %s, %s"
+      (print_cmp cmp)
+      (print_reg srcr)
+      lbl_true
+      lbl_false
+  | RTLabs.St_cond_cmp (cmp, srcr1, srcr2, lbl_true, lbl_false) ->
+      Printf.sprintf "b%s %s, %s? --> %s, %s"
+      (print_cmp cmp)
+      (print_reg srcr1)
+      (print_reg srcr2)
+      lbl_true
+      lbl_false
 (*
   | RTLabs.St_condcst (cst, t, lbl_true, lbl_false) ->
       Printf.sprintf "(%s) %s --> %s, %s"
