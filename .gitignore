@@ -1,0 +1,7 @@
+*.cmi
+*.cma
+*.cmxa
+*.so
+*.a
+*.byte
+*.native
