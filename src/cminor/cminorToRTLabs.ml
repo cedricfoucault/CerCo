@@ -102,7 +102,7 @@ let generate
   let lbl = fresh_label rtlabs_fun in
   add_graph rtlabs_fun lbl stmt
 
-
+let translate_expr = translate_expr_fallback
 (* Translating conditions *)
 
 (** [translate_branch rtlabs_fun lenv e lbl_true lbl_false] adds instructions at
@@ -129,7 +129,10 @@ let rec translate_branch
     of the graph of the [RTLabs] function [rtlabs_fun] such that the translation
     of the [Cminor] expression [e] is assigned to the pseudo-register
     [destr]. *)
-and translate_expr
+
+and translate_expr = translate_expr_fallback
+
+and translate_expr_fallback
     (rtlabs_fun : RTLabs.internal_function)
     (lenv       : local_env)
     (destr      : Register.t)
@@ -197,6 +200,7 @@ and translate_exprs
   let f destr e rtlabs_fun = translate_expr rtlabs_fun lenv destr e in
   List.fold_right2 f regs args rtlabs_fun
 
+exception TileFail
 
 (* Translating statements *)
 
@@ -205,7 +209,27 @@ and translate_exprs
     translates the [Cminor] statement [stmt]. [lenv] is the local environment
     associating a pseudo-register to each variable of the [Cminor] program, and
     [exits] are the labels associated to indices used in [exit] statements. *)
-let rec translate_stmt
+let instruction_selector tiles
+    (rtlabs_fun : RTLabs.internal_function)
+    (lenv       : local_env)
+    (exits      : Label.t list)
+    (stmt       : Cminor.statement)
+    : RTLabs.internal_function =
+    let try_tile tile acc =
+      try
+        (tile rtlabs_fun lenv exits stmt) :: acc
+      with
+      | TileFail -> acc
+    in
+    let size rtlabs_fun = Label.Map.cardinal rtlabs_fun.f_graph in
+    let minsize x y = if size x < size y then x else y in
+    let hd :: tl = List.fold_right try_tile tiles in
+    List.fold_left minsize hd tl
+
+let rec translate_stmt =
+  instruction_selector tile_list
+
+and translate_stmt_fallback
     (rtlabs_fun : RTLabs.internal_function)
     (lenv       : local_env)
     (exits      : Label.t list)
