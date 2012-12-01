@@ -104,7 +104,7 @@ let generate
 
 exception TileFail
 
-(** [instruction_selector tiles arg1 .. arg4] tries each tile on the given 
+(** [instruction_selector tiles arg1 .. arg4] tries each tile on the given
   arguments and returns the best result (smallest graph size) *)
 let instruction_selector tiles
   (rtlabs_fun (* : RTLabs.internal_function *))
@@ -123,6 +123,26 @@ let instruction_selector tiles
   match List.fold_right try_tile tiles [] with
   | hd :: tl -> List.fold_left minsize hd tl
   | _ -> failwith "cannot happen (tile_list always contain a fallback)"
+(** same function for branch tiles (these tiles have a different 
+    type signature) *)
+let branch_instruction_selector tiles
+    (rtlabs_fun : RTLabs.internal_function)
+    (lenv       : local_env)
+    (e          : Cminor.expression)
+    (lbl_true   : Label.t)
+    (lbl_false  : Label.t)
+    : RTLabs.internal_function =
+  let try_tile tile acc =
+    try
+      (tile rtlabs_fun lenv e lbl_true lbl_false) :: acc
+    with
+    | TileFail -> acc
+  in
+  let size rtlabs_fun = Label.Map.cardinal rtlabs_fun.RTLabs.f_graph in
+  let minsize x y = if size x < size y then x else y in
+  match List.fold_right try_tile tiles [] with
+  | hd :: tl -> List.fold_left minsize hd tl
+  | _ -> failwith "cannot happen (tile_list always contain a fallback)"
 
 (* Translating conditions *)
 
@@ -131,7 +151,81 @@ let instruction_selector tiles
     the [Cminor] expression [e] is evaluated, and if it is different from 0 then
     the flow will fall to the [lbl_true] label of the graph, and if it is 0 then
     it will fall to the [lbl_false] label. *)
-let rec translate_branch
+
+let rec translate_branch rtlabs_fun lenv e lbl_true lbl_false =
+    branch_instruction_selector branch_tile_list
+        rtlabs_fun lenv e lbl_true lbl_false
+    
+and branch_tile_list =
+    let tile_cond_cmpz rtlabs_fun lenv e lbl_true lbl_false = match e with
+    | Cminor.Expr (
+        Cminor.Op2 (
+            op2,
+            el,
+            er
+        ),
+        _
+      ) -> begin
+          (* get the comparison operator *)
+          let cmp = match op2 with
+          | AST.Op_cmp(c) -> c
+          | AST.Op_cmpu(c) -> c
+          | _ -> raise TileFail
+          (* get the operand which is compared to zero *)
+          and e = match (el, er) with
+          | (Cminor.Expr(Cminor.Cst(AST.Cst_int(0)), _), _) -> er
+          | (_, Cminor.Expr(Cminor.Cst(AST.Cst_int(0)), _)) -> el
+          | _ -> raise TileFail
+          in
+          (* choose a destination register for the expression to compare *)
+          let (rtlabs_fun, r) = choose_destination rtlabs_fun lenv e in
+          (* generate the RTLabs cmpzero statement *)
+          let stmt =
+            if e = er then
+                RTLabs.St_cond_cmpz (cmp, r, lbl_true, lbl_false)
+            else (* reverse order if zero is the right operand *)
+                RTLabs.St_cond_cmpz (cmp, r, lbl_false, lbl_true)
+          in
+          (* add the statement to the target graph *)
+          let rtlabs_fun = generate rtlabs_fun stmt in
+          (* evaluate the expression *)
+          translate_expr rtlabs_fun lenv r e
+      end
+    | _ -> raise TileFail
+    
+    and tile_cond_cmp rtlabs_fun lenv e lbl_true lbl_false = match e with
+    | Cminor.Expr (
+        Cminor.Op2 (
+            op2,
+            el,
+            er
+        ),
+        _
+      ) -> begin
+          (* get the comparison operator *)
+          let cmp = match op2 with
+          | AST.Op_cmp(c) -> c
+          | AST.Op_cmpu(c) -> c
+          | _ -> raise TileFail
+          in
+          (* choose a destination register for the 2 expressions to compare *)
+          let (rtlabs_fun, rl) = choose_destination rtlabs_fun lenv el in
+          let (rtlabs_fun, rr) = choose_destination rtlabs_fun lenv er in
+          (* generate the RTLabs cmp statement *)
+          let stmt = RTLabs.St_cond_cmp (cmp, rl, rr, lbl_true, lbl_false) in
+          (* add the statement to the target graph *)
+          let rtlabs_fun = generate rtlabs_fun stmt in
+          (* evaluate the two expressions *)
+          let rtlabs_fun = translate_expr rtlabs_fun lenv rl el in
+          translate_expr rtlabs_fun lenv rr el
+      end
+    | _ -> raise TileFail
+    
+    in
+    
+    [tile_cond_cmpz; tile_cond_cmp; translate_branch_fallback]
+
+and translate_branch_fallback
     (rtlabs_fun : RTLabs.internal_function)
     (lenv       : local_env)
     (e          : Cminor.expression)
@@ -153,7 +247,7 @@ let rec translate_branch
 and translate_expr rtlabs_fun lenv destr e =
     instruction_selector tile_list rtlabs_fun lenv destr e
 
-and tile_list =  [translate_expr_fallback]
+and tile_list = [translate_expr_fallback]
 
 and translate_expr_fallback
     (rtlabs_fun : RTLabs.internal_function)

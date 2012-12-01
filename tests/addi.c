@@ -2,7 +2,7 @@ int main () {
     int i = 0;
     i = i + 1;
     print_sint(i);
-    newline();
+    space();
     i = i - 1;
     print_sint(i);
     newline();

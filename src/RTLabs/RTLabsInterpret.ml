@@ -282,14 +282,14 @@ let interpret_statement
         let v = Eval.op2
     	    (get_type lenv srcr) (get_type lenv srcr) int_sig
     	    op2_cmp
-    	    (get_value lenv srcr)
     	    (Val.of_int 0)
-    	  in
-    	  (* do the conditional branch on the result *)
-    	  branch_state sfrs graph sp lbl_true lbl_false lenv mem trace v
+    	    (get_value lenv srcr)
+    	in
+    	(* do the conditional branch on the result *)
+    	branch_state sfrs graph sp lbl_true lbl_false lenv mem trace v
 
-    	| RTLabs.St_cond_cmp (cmp, srcr1, srcr2, lbl_true, lbl_false) ->
-    	  (* retrieve the binary operator from cmp *)
+      | RTLabs.St_cond_cmp (cmp, srcr1, srcr2, lbl_true, lbl_false) ->
+        (* retrieve the binary operator from cmp *)
         let op2_cmp = AST.Op_cmp cmp in
         (* evaluate the comparison between srcr1 and srcr2 *)
         let v = Eval.op2
@@ -297,9 +297,9 @@ let interpret_statement
     	    op2_cmp
     	    (get_value lenv srcr1)
     	    (get_value lenv srcr2)
-    	  in
-    	  (* do the conditional branch on the result *)
-    	  branch_state sfrs graph sp lbl_true lbl_false lenv mem trace v
+    	in
+    	(* do the conditional branch on the result *)
+    	branch_state sfrs graph sp lbl_true lbl_false lenv mem trace v
 
 (*
       | RTLabs.St_condcst (cst, t, lbl_true, lbl_false) ->
