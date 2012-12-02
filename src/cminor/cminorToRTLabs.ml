@@ -217,7 +217,7 @@ and branch_tile_list =
           let rtlabs_fun = generate rtlabs_fun stmt in
           (* evaluate the two expressions *)
           let rtlabs_fun = translate_expr rtlabs_fun lenv rl el in
-          translate_expr rtlabs_fun lenv rr el
+          translate_expr rtlabs_fun lenv rr er
       end
     | _ -> raise TileFail
     

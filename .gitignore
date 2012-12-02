@@ -5,3 +5,5 @@
 *.a
 *.byte
 *.native
+*.RTLabs
+*.Cminor

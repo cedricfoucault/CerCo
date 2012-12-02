@@ -167,7 +167,8 @@ let print_statement = function
 	(print_reg destr)
 	lbl
   | RTLabs.St_loadi (q, i, addr, destr, lbl) ->
-      Printf.sprintf "lw %s, %s(%s) --> %s"
+      Printf.sprintf "lw %s, %s, %s(%s) --> %s"
+      (Memory.string_of_quantity q)
       (print_reg destr)
       (print_cst i)
       (print_reg addr)
@@ -179,7 +180,8 @@ let print_statement = function
 	(print_reg srcr)
 	lbl
 	| RTLabs.St_storei (q, i, addr, srcr, lbl) ->
-      Printf.sprintf "sw %s, %s(%s) --> %s"
+      Printf.sprintf "sw %s, %s, %s(%s) --> %s"
+      (Memory.string_of_quantity q)
       (print_reg srcr)
       (print_cst i)
       (print_reg addr)
